@@ -1,6 +1,4 @@
-# build for images at shaunmulligan995/rpi5-ai-kit
-
-FROM python:3.11.9-slim-bookworm
+FROM balenalib/raspberrypi5-debian-python:bookworm-build
 
 WORKDIR /root
 
@@ -29,14 +27,25 @@ RUN mkdir -p /run/systemd && echo 'docker' > /run/systemd/container
 # Dependencies for hailo runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    hailo-tappas-core=3.30.0-1 \
-    hailort=4.19.0-3 \
-    hailo-dkms=4.19.0-1 \
+    # hailo-tappas-core=3.30.0-1 \
+    # hailort=4.19.0-3 \
+    # hailo-dkms=4.19.0-1 \
+    hailo-all \
     libcap-dev \
-    python3-hailort=4.19.0-2 \
+    # python3-hailort=4.19.0-2 \
     python3-picamera2 \
+    # libcamera-apps \
     && rm -rf /var/lib/apt/lists/*
 
+
+
+WORKDIR /usr/src
+
+
+ENV UDEV=on
+
+# Manually remove the system 'av' package to prevent conflict with pip
+RUN rm -rf /usr/lib/python3/dist-packages/av*
 
 WORKDIR /app
 # create python virtual env and install pip dependencies.
@@ -48,6 +57,7 @@ RUN ./venv/bin/pip3 install \
     "numpy<2.0" \
     opencv-python \
     vidgear[asyncio] \
+    aiortc \
     uvicorn 
 
 # Bring our source code into docker context, everything not in .dockerignore
@@ -55,7 +65,7 @@ COPY . .
 
 # Set our ENTRYPOINT that ensures `/dev/hailo0` gets created
 RUN chmod u+x entry.sh
-ENTRYPOINT ["/app/entry.sh"]
+# ENTRYPOINT ["/app/entry.sh"]
 
 # launch our app.
 RUN chmod +x start.sh

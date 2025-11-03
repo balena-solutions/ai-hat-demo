@@ -17,6 +17,7 @@ services:
     devices:
       - /dev/dri:/dev/dri
     privileged: true
-    network_mode: host
+    ports:
+      - "8080:8080"
     ipc: host
 

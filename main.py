@@ -261,7 +261,7 @@ stream_options = {
 web = WebGear_RTC(enablePiCamera=True, logging=True, **stream_options)
 
 # Run this app on Uvicorn server at address http://localhost:8080/
-uvicorn.run(web(), host="0.0.0.0", port=8080)
+uvicorn.run(web(), host="0.0.0.0", port=8080, proxy_headers=True)
 
 # Close app safely
 web.shutdown()
