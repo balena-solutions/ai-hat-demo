@@ -2,16 +2,16 @@
 set -euo pipefail
 
 # # setup container to dynamically load /dev devices.
-# newdev='/tmp/dev'
-# mkdir -p "$newdev"
-# mount -t devtmpfs none "$newdev"
-# mount --move /dev/console "$newdev/console"
-# mount --move /dev/mqueue "$newdev/mqueue"
-# mount --move /dev/pts "$newdev/pts"
-# mount --move /dev/shm "$newdev/shm"
-# umount /dev
-# mount --move "$newdev" /dev
-# ln -sf /dev/pts/ptmx /dev/ptmx
+newdev='/tmp/dev'
+mkdir -p "$newdev"
+mount -t devtmpfs none "$newdev"
+mount --move /dev/console "$newdev/console"
+mount --move /dev/mqueue "$newdev/mqueue"
+mount --move /dev/pts "$newdev/pts"
+mount --move /dev/shm "$newdev/shm"
+umount /dev
+mount --move "$newdev" /dev
+ln -sf /dev/pts/ptmx /dev/ptmx
 
 FIRMWARE_SOURCE="/usr/lib/firmware/hailo/hailo8_fw.4.20.0.bin"
 FIRMWARE_TARGET_DIR="/data/hailo"

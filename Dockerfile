@@ -1,4 +1,5 @@
-FROM balenalib/raspberrypi5-debian-python:bookworm-build
+# FROM balenalib/raspberrypi5-debian-python:bookworm-build
+FROM python:slim-bookworm
 
 WORKDIR /root
 
