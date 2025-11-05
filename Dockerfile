@@ -1,5 +1,5 @@
 # FROM balenalib/raspberrypi5-debian-python:bookworm-build
-FROM python:slim-bookworm
+FROM python:3.11.9-slim-bookworm
 
 WORKDIR /root
 
@@ -10,7 +10,8 @@ RUN apt-get update -qq && \
     software-properties-common \
     kmod \ 
     dirmngr \
-    gnupg 
+    gnupg \
+    udev 
 
 # Need to create a sources.list file for apt-add-repository to work correctly:
 # https://groups.google.com/g/linux.debian.bugs.dist/c/6gM_eBs4LgE
@@ -43,14 +44,17 @@ RUN apt-get update && \
 WORKDIR /usr/src
 
 
-ENV UDEV=on
-
 # Manually remove the system 'av' package to prevent conflict with pip
 RUN rm -rf /usr/lib/python3/dist-packages/av*
 
 WORKDIR /app
 # create python virtual env and install pip dependencies.
 RUN python3 -m venv venv --system-site-packages
+
+# Force the venv (which uses /usr/local/bin/python3) to find the 
+# system packages installed by apt (which are in /usr/lib/python3/dist-packages).
+RUN echo "/usr/lib/python3/dist-packages" > /app/venv/lib/python3.11/site-packages/debian.pth
+
 # Step 3: Install all Python packages with pip.
 # We use the venv's pip and pin numpy<2.0 to maintain
 # compatibility with the 'python3-hailort' apt package.
@@ -63,6 +67,7 @@ RUN ./venv/bin/pip3 install \
 
 # Bring our source code into docker context, everything not in .dockerignore
 COPY . . 
+
 
 # Set our ENTRYPOINT that ensures `/dev/hailo0` gets created
 RUN chmod u+x entry.sh
