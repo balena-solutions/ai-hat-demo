@@ -8,6 +8,7 @@ import re
 import threading
 import time
 import os
+import numpy as np
 
 # Define an interface for object detectors
 class ObjectDetector:
@@ -62,6 +63,16 @@ class HailoObjectDetector(ObjectDetector):
         """Extract detections from the HailoRT-postprocess output."""
         results = []
         for class_id, detections in enumerate(hailo_output):
+
+            # If 'detections' is empty for this class, skip it
+            if detections.size == 0:
+                continue
+                
+            # If 'detections' is 1D (meaning only one detection),
+            # expand it to 2D to make the loop work.
+            if detections.ndim == 1:
+                detections = np.expand_dims(detections, axis=0)
+
             for detection in detections:
                 score = detection[4]
                 if score >= self.score_thresh:
