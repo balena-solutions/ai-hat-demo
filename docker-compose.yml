@@ -1,0 +1,22 @@
+version: 2.4
+volumes:
+  firmware-volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind,rshared,rw
+      device: /run/mount
+services:
+  detector:
+    build: .
+    tty: true
+    labels:
+      io.balena.features.kernel-modules: '1'
+    volumes:
+      - 'firmware-volume:/data'
+    devices:
+      - /dev/dri:/dev/dri
+    privileged: true
+    ports:
+      - "80:8080"
+    ipc: host
