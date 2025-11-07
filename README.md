@@ -103,5 +103,7 @@ This script sets up a UDEV system to detect plugged hardware (necessary for the 
 
 This script is the main point of interest for this demo because it installs the firmware for the Hailo AI HAT. Ask Shaun how this works!
 
+### rpi-cam apps
 
+The rpicam apps use the libcamera library under the hood so it can send output directly to hdmi using a dedicated subsystem in linux kernel (DRM/KMS).
 
