@@ -77,6 +77,31 @@ Viewfinder frame 0
 Object: clock[75] (0.57) @ 1499,753 136x150
 ------
 Viewfinder frame 1
+------
+Object: person[1] (0.45) @ 1431,851 272x424
+Object: person[1] (0.42) @ 1880,906 201x124
+Object: scissors[77] (0.44) @ 1810,1005 474x290
 ```
+
+Press CTRL + c to end the demo.
+
+## How it works
+
+### Dockerfile
+
+Our Dockerfile adds apt repositories so we can download the Hailo deb packages as well as thge Raspberry Pi OS camera apps. The Hailo software expects a system service to be running, but systemd is not really recommended to run in a container, so we "fake" one instead. (We strongly advocate for a multi-container architecture where different components of your application are separated into individual containers. )
+
+We also install the `hailo-all` package that includes the Hailo kernel device driver and firmware, HailoRT middleware software, Hailo Tappas core post-processing libraries and the rpicam-apps Hailo post-processing software demo stages.
+
+Note that our base image is simply an official Python image. Though we don't specifically use any Python in our demo, if you copy this example you can easily run your own Python apps in the container.
+
+### entry.sh
+
+This script sets up a UDEV system to detect plugged hardware (necessary for the camera) and then calls the ai-setup script.
+
+### ai-setup.sh
+
+This script is the main point of interest for this demo because it installs the firmware for the Hailo AI HAT. Ask Shaun how this works!
+
 
 
