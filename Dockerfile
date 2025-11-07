@@ -28,14 +28,18 @@ RUN mkdir -p /run/systemd && echo 'docker' > /run/systemd/container
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     hailo-all \
-    libcap-dev \
-    python3-picamera2 \
     && rm -rf /var/lib/apt/lists/*
-    
+
+# 2. Install Python libraries
+RUN pip install flask
+
 WORKDIR /app
 
 # Copy our sh files to the device
 COPY *.sh ./
+
+# copy flask app
+COPY main.py ./
 
 # Set our ENTRYPOINT that ensures `/dev/hailo0` gets created
 RUN chmod u+x entry.sh

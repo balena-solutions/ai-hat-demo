@@ -10,4 +10,6 @@ udevadm control --reload
 
 # If you want to start your own app, you can start it here!
 
+python main.py
+
 sleep infinity
