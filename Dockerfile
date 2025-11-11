@@ -32,6 +32,19 @@ RUN apt-get update && \
 
 # 2. Install Python libraries
 RUN pip install flask
+RUN pip install opencv-python
+RUN pip install numpy
+
+# Make hailo_platform available to pip's Python environment
+# Create a symlink from the system package to pip's site-packages
+RUN SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])") && \
+    if [ -d /usr/lib/python3/dist-packages/hailo_platform ]; then \
+        ln -sf /usr/lib/python3/dist-packages/hailo_platform "$SITE_PACKAGES/hailo_platform"; \
+        ln -sf /usr/lib/python3/dist-packages/hailo_platform.egg-info "$SITE_PACKAGES/hailo_platform.egg-info" || true; \
+        echo "Hailo platform linked to $SITE_PACKAGES"; \
+    else \
+        echo "Warning: hailo_platform not found in expected location"; \
+    fi
 
 WORKDIR /app
 

@@ -10,6 +10,6 @@ udevadm control --reload
 
 # If you want to start your own app, you can start it here!
 
-python main.py
+USB_CAMERA=1 USE_HAILO=1 python main.py
 
 sleep infinity
