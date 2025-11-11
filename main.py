@@ -8,9 +8,7 @@ from flask import Flask, Response, render_template_string
 
 # Hailo imports
 try:
-    from hailo_platform import (HEF, VDevice, HailoStreamInterface, 
-                                 InferVStreams, ConfigureParams,
-                                 InputVStreamParams, OutputVStreamParams)
+    from hailo_platform import (HEF, VDevice, FormatType)
     HAILO_AVAILABLE = True
 except ImportError:
     HAILO_AVAILABLE = False
@@ -41,17 +39,24 @@ HTML_TEMPLATE = """
 """
 
 # Hailo YOLOv8 inference helper functions
-def preprocess_frame_for_hailo(frame, input_height, input_width):
+def preprocess_frame_for_hailo(frame, input_height, input_width, input_format_type):
     """
     Preprocess frame for Hailo inference.
     Resize and normalize according to model requirements.
     """
     resized = cv2.resize(frame, (input_width, input_height))
-    # Convert BGR to RGB
-    rgb_frame = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-    # Normalize to 0-1 range (typical for YOLOv8)
-    normalized = rgb_frame.astype(np.float32) / 255.0
-    return normalized
+    
+    # Check if model expects uint8 or float32
+    if input_format_type == "UINT8":
+        # Convert BGR to RGB, keep as uint8
+        rgb_frame = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+        return rgb_frame.astype(np.uint8)
+    else:
+        # Convert BGR to RGB
+        rgb_frame = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+        # Normalize to 0-1 range (typical for YOLOv8)
+        normalized = rgb_frame.astype(np.float32) / 255.0
+        return normalized
 
 def postprocess_yolov8_hailo(output, frame, conf_threshold=0.25, iou_threshold=0.45):
     """
@@ -238,121 +243,137 @@ def run_camera_thread_usb_with_hailo(camera_index=0, hef_path="/usr/share/hailo-
         print("ERROR: Hailo platform not available. Falling back to USB camera without inference.")
         return run_camera_thread_usb(camera_index)
     
-    # Initialize Hailo device and model
-    hailo_device = None
-    infer_pipeline = None
-    
     try:
+        from hailo_platform import VDevice, HailoStreamInterface, FormatType, HailoSchedulingAlgorithm
+        
         print(f"Loading Hailo model from {hef_path}...")
-        hef = HEF(hef_path)
         
-        # Get target device
-        target = VDevice()
+        # Create VDevice with params
+        params = VDevice.create_params()
+        params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
+        target = VDevice(params)
         
-        # Configure the inference
-        configure_params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
-        network_group = target.configure(hef, configure_params)[0]
-        network_group_params = network_group.create_params()
+        # Create infer model
+        infer_model = target.create_infer_model(hef_path)
+        infer_model.set_batch_size(1)
         
-        # Get input/output stream parameters directly from the network group
-        input_vstream_infos = hef.get_input_vstream_infos()
-        output_vstream_infos = hef.get_output_vstream_infos()
+        # Set input/output types
+        infer_model.input().set_format_type(FormatType.UINT8)
+        infer_model.output().set_format_type(FormatType.FLOAT32)
         
-        # Create vstream params
-        input_vstreams_params = InputVStreamParams.make_from_network_group(network_group, quantized=False)
-        output_vstreams_params = OutputVStreamParams.make_from_network_group(network_group, quantized=False)
+        # Get input shape info
+        input_shape = infer_model.input().shape
+        model_height, model_width = input_shape[1], input_shape[2]  # Shape is [batch, height, width, channels]
         
         print("Hailo model loaded successfully")
-        print(f"Input streams: {len(input_vstream_infos)}")
-        print(f"Output streams: {len(output_vstream_infos)}")
+        print(f"Model input shape: {input_shape}")
         
-        # Get model input shape
-        input_shape = input_vstream_infos[0].shape
-        model_height, model_width = input_shape[0], input_shape[1]
-        print(f"Model input shape: {model_height}x{model_width}")
-        
-        hailo_device = target
-        
+        while True:
+            print(f"Opening USB camera at index {camera_index}...")
+            
+            # Open the camera using OpenCV
+            cap = cv2.VideoCapture(camera_index)
+            
+            if not cap.isOpened():
+                print(f"Error: Could not open camera at index {camera_index}")
+                time.sleep(5)
+                continue
+            
+            # Set camera properties
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 640)
+            cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+            
+            print(f"USB camera opened successfully")
+            
+            try:
+                print("Starting inference loop...")
+                
+                # Get layer names
+                hef = HEF(hef_path)
+                input_name = hef.get_input_vstream_infos()[0].name
+                output_name = hef.get_output_vstream_infos()[0].name
+                output_shape = hef.get_output_vstream_infos()[0].shape
+                
+                print(f"Input layer: {input_name}, Output layer: {output_name}")
+                
+                # Configure model once outside the loop  
+                with infer_model.configure() as configured_model:
+                    print("Model configured, starting frame capture...")
+                    
+                    while True:
+                        ret, frame = cap.read()
+                        
+                        if not ret:
+                            print("Error: Failed to read frame from camera")
+                            break
+                        
+                        # Preprocess frame: resize and convert to RGB
+                        resized = cv2.resize(frame, (model_width, model_height))
+                        rgb_frame = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+                        
+                        # Ensure contiguous uint8 array WITHOUT batch dimension
+                        # The API adds batch dimension internally
+                        input_data = np.ascontiguousarray(rgb_frame, dtype=np.uint8)
+                        
+                        print(f"Input data shape: {input_data.shape}, dtype: {input_data.dtype}, size: {input_data.nbytes}")
+                        
+                        # Create bindings for this inference
+                        bindings = configured_model.create_bindings()
+                        
+                        # Set input buffer - try with view
+                        input_view = np.asarray(input_data)
+                        bindings.input(input_name).set_buffer(input_view)
+                        
+                        # Allocate output buffer
+                        output_buffer = np.empty(output_shape, dtype=np.float32)
+                        bindings.output(output_name).set_buffer(output_buffer)
+                        
+                        print("Buffers set, running inference...")
+                        
+                        # Run inference with bindings list
+                        configured_model.run([bindings], timeout=1000)
+                        
+                        print("Inference complete!")
+                        
+                        # Output is now in output_buffer
+                        
+                        # Post-process results and draw on frame
+                        frame_with_detections = postprocess_yolov8_hailo([output_buffer], frame)
+                        
+                        # Encode the frame as JPEG
+                        ret, jpeg = cv2.imencode('.jpg', frame_with_detections)
+                        
+                        if not ret:
+                            print("Error: Failed to encode frame as JPEG")
+                            continue
+                        
+                        # Convert to bytes
+                        frame_bytes = jpeg.tobytes()
+                        
+                        # Update the global frame
+                        with global_frame_lock:
+                            global_frame = frame_bytes
+                        
+                        # Control frame rate
+                        time.sleep(FRAME_DURATION)
+                    
+            except Exception as e:
+                print(f"Error while capturing/inferencing from USB camera: {e}")
+                import traceback
+                traceback.print_exc()
+                
+            finally:
+                cap.release()
+                print("USB camera released. Restarting...")
+                time.sleep(1)
+                    
     except Exception as e:
         print(f"Error initializing Hailo device: {e}")
         import traceback
         traceback.print_exc()
         print("Falling back to USB camera without inference")
         return run_camera_thread_usb(camera_index)
-    
-    while True:
-        print(f"Opening USB camera at index {camera_index}...")
-        
-        # Open the camera using OpenCV
-        cap = cv2.VideoCapture(camera_index)
-        
-        if not cap.isOpened():
-            print(f"Error: Could not open camera at index {camera_index}")
-            time.sleep(5)
-            continue
-        
-        # Set camera properties
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 640)
-        cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
-        
-        print(f"USB camera opened successfully")
-        
-        try:
-            with InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
-                input_vstreams = infer_pipeline.input_vstreams
-                output_vstreams = infer_pipeline.output_vstreams
-                
-                print("Starting inference loop...")
-                
-                while True:
-                    ret, frame = cap.read()
-                    
-                    if not ret:
-                        print("Error: Failed to read frame from camera")
-                        break
-                    
-                    # Preprocess frame for Hailo
-                    preprocessed = preprocess_frame_for_hailo(frame, model_height, model_width)
-                    
-                    # Run inference
-                    input_data = {input_vstreams[0].name: preprocessed}
-                    
-                    # Send to Hailo and get results
-                    with network_group.activate(network_group_params):
-                        infer_results = infer_pipeline.infer(input_data)
-                    
-                    # Post-process results and draw on frame
-                    # Note: You'll need to implement proper postprocessing based on your model
-                    output_data = list(infer_results.values())
-                    frame_with_detections = postprocess_yolov8_hailo(output_data, frame)
-                    
-                    # Encode the frame as JPEG
-                    ret, jpeg = cv2.imencode('.jpg', frame_with_detections)
-                    
-                    if not ret:
-                        print("Error: Failed to encode frame as JPEG")
-                        continue
-                    
-                    # Convert to bytes
-                    frame_bytes = jpeg.tobytes()
-                    
-                    # Update the global frame
-                    with global_frame_lock:
-                        global_frame = frame_bytes
-                    
-                    # Control frame rate
-                    time.sleep(FRAME_DURATION)
-                    
-        except Exception as e:
-            print(f"Error while capturing/inferencing from USB camera: {e}")
-            import traceback
-            traceback.print_exc()
-            
-        finally:
-            cap.release()
-            print("USB camera released. Restarting...")
-            time.sleep(1)
 
 
 # 3. This is the generator function for each client
