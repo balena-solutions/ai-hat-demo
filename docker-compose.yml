@@ -19,4 +19,3 @@ services:
     privileged: true
     ports:
       - "80:8080"
-    ipc: host
