@@ -7,6 +7,7 @@ OS_VERSION=$(echo "$BALENA_HOST_OS_VERSION" | cut -d " " -f 2)
 MOD_PATH="/opt/lib/modules/${OS_VERSION}"
 MODULE_NAME="hailo_pci"
 MODULE_FILE="${MOD_PATH}/${MODULE_NAME}.ko"
+FIRMWARE_SOURCE="/opt/firmware/hailo/hailo8_fw.bin"
 FIRMWARE_DIR="/run/mount/hailo"
 FIRMWARE_FILE="${FIRMWARE_DIR}/hailo8_fw.bin"
 FIRMWARE_PATH_PARAM="/sys/module/firmware_class/parameters/path"
@@ -17,7 +18,8 @@ echo "[LOAD] ========================================"
 echo "[LOAD] OS Version: ${OS_VERSION}"
 echo "[LOAD] Module path: ${MOD_PATH}"
 echo "[LOAD] Module file: ${MODULE_FILE}"
-echo "[LOAD] Firmware file: ${FIRMWARE_FILE}"
+echo "[LOAD] Firmware source: ${FIRMWARE_SOURCE}"
+echo "[LOAD] Firmware destination: ${FIRMWARE_FILE}"
 echo "[LOAD] ========================================"
 
 # Verify module exists
@@ -28,40 +30,34 @@ if [[ ! -f "${MODULE_FILE}" ]]; then
     exit 1
 fi
 
-# Wait for firmware file to be placed by detector service
-# The detector service will copy firmware from its image to the shared volume
-echo "[LOAD] Waiting for firmware file from detector service..."
-RETRY_COUNT=0
-MAX_RETRIES=60  # Wait up to 2 minutes
+# Copy firmware version 4.20.0 to shared volume
+echo "[LOAD] Copying firmware 4.20.0 to shared volume..."
+mkdir -p "${FIRMWARE_DIR}"
 
-while [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; do
-    if [[ -f "${FIRMWARE_FILE}" ]]; then
-        echo "[LOAD] Firmware file found at ${FIRMWARE_FILE}"
-        break
-    else
-        echo "[LOAD] Waiting for firmware... (attempt $((RETRY_COUNT + 1))/${MAX_RETRIES})"
-        sleep 2
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-    fi
-done
-
-if [[ ! -f "${FIRMWARE_FILE}" ]]; then
-    echo "[LOAD] ERROR: Firmware file not found after ${MAX_RETRIES} attempts"
-    echo "[LOAD] Expected location: ${FIRMWARE_FILE}"
-    echo "[LOAD] The detector service should copy firmware to this location"
-    echo "[LOAD] Contents of /run/mount/:"
-    ls -laR /run/mount/ || true
+if [[ -f "${FIRMWARE_SOURCE}" ]]; then
+    cp "${FIRMWARE_SOURCE}" "${FIRMWARE_FILE}"
+    echo "[LOAD] Firmware copied successfully"
+else
+    echo "[LOAD] ERROR: Firmware source not found at ${FIRMWARE_SOURCE}"
     exit 1
 fi
 
-# Verify firmware_class.path is set correctly by detector service
-echo "[LOAD] Checking firmware_class.path parameter..."
+# Set firmware_class.path to /run/mount so the kernel can find firmware
+echo "[LOAD] Setting firmware_class.path to /run/mount"
+if echo "/run/mount" > "${FIRMWARE_PATH_PARAM}"; then
+    echo "[LOAD] firmware_class.path set successfully"
+else
+    echo "[LOAD] WARNING: Could not set firmware_class.path"
+fi
+
+# Verify firmware_class.path is set correctly
+echo "[LOAD] Verifying firmware_class.path parameter..."
 if [[ -f "${FIRMWARE_PATH_PARAM}" ]]; then
     FW_PATH=$(cat ${FIRMWARE_PATH_PARAM})
     echo "[LOAD] firmware_class.path is set to: ${FW_PATH}"
     if [[ "${FW_PATH}" != "/run/mount" ]]; then
         echo "[LOAD] WARNING: firmware_class.path is not set to /run/mount"
-        echo "[LOAD] Expected: /run/mount (should be set by detector service)"
+        echo "[LOAD] Expected: /run/mount"
         echo "[LOAD] Actual: ${FW_PATH}"
     fi
 else

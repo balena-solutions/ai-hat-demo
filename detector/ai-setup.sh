@@ -1,39 +1,13 @@
 #!/bin/bash
 
-# This script prepares firmware for the Hailo AI HAT and waits for the device
-# The hailo-kmod service handles loading the kernel module
+# This script waits for the Hailo device to be ready
+# The hailo-kmod service handles firmware setup and kernel module loading
 
-FIRMWARE_SOURCE="/usr/lib/firmware/hailo/hailo8_fw.4.20.0.bin"
-FIRMWARE_TARGET_DIR="/data/hailo"
-FIRMWARE_TARGET="$FIRMWARE_TARGET_DIR/hailo8_fw.bin"
-FIRMWARE_PATH_OVERRIDE="/run/mount"
 DEVICE_PATH="/dev/hailo0"
 
-echo "[HAILO SETUP] Starting firmware preparation..."
+echo "[HAILO SETUP] Waiting for Hailo AI HAT+ device..."
 
-# Step 1: Copy firmware to shared volume for hailo-kmod service
-if [[ -f "$FIRMWARE_TARGET" ]]; then
-    echo "[HAILO SETUP] Firmware already exists at $FIRMWARE_TARGET"
-else
-    echo "[HAILO SETUP] Preparing firmware for hailo-kmod service..."
-    mkdir -p "$FIRMWARE_TARGET_DIR"
-
-    if [[ -f "$FIRMWARE_SOURCE" ]]; then
-        echo "[HAILO SETUP] Copying firmware from $FIRMWARE_SOURCE to $FIRMWARE_TARGET"
-        cp "$FIRMWARE_SOURCE" "$FIRMWARE_TARGET"
-        echo "[HAILO SETUP] Firmware ready for hailo-kmod service"
-    else
-        echo "[HAILO SETUP] ERROR: Firmware source not found at $FIRMWARE_SOURCE"
-        exit 1
-    fi
-fi
-
-# Step 2: Set firmware_class.path to /run/mount
-# This adds an additional firmware search path for the kernel
-echo "[HAILO SETUP] Setting firmware_class.path to $FIRMWARE_PATH_OVERRIDE"
-echo "$FIRMWARE_PATH_OVERRIDE" > /sys/module/firmware_class/parameters/path
-
-# Step 3: Wait for hailo-kmod service to load the module and create device
+# Wait for hailo-kmod service to load the module and create device
 echo "[HAILO SETUP] Waiting for hailo-kmod service to load kernel module..."
 RETRY_COUNT=0
 MAX_RETRIES=30
