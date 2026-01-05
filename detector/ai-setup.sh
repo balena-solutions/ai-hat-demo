@@ -6,6 +6,7 @@
 FIRMWARE_SOURCE="/usr/lib/firmware/hailo/hailo8_fw.4.20.0.bin"
 FIRMWARE_TARGET_DIR="/data/hailo"
 FIRMWARE_TARGET="$FIRMWARE_TARGET_DIR/hailo8_fw.bin"
+FIRMWARE_PATH_OVERRIDE="/run/mount"
 DEVICE_PATH="/dev/hailo0"
 
 echo "[HAILO SETUP] Starting firmware preparation..."
@@ -27,7 +28,12 @@ else
     fi
 fi
 
-# Step 2: Wait for hailo-kmod service to load the module and create device
+# Step 2: Set firmware_class.path to /run/mount
+# This adds an additional firmware search path for the kernel
+echo "[HAILO SETUP] Setting firmware_class.path to $FIRMWARE_PATH_OVERRIDE"
+echo "$FIRMWARE_PATH_OVERRIDE" > /sys/module/firmware_class/parameters/path
+
+# Step 3: Wait for hailo-kmod service to load the module and create device
 echo "[HAILO SETUP] Waiting for hailo-kmod service to load kernel module..."
 RETRY_COUNT=0
 MAX_RETRIES=30

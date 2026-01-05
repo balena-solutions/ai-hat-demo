@@ -54,20 +54,14 @@ if [[ ! -f "${FIRMWARE_FILE}" ]]; then
     exit 1
 fi
 
-# Set firmware_class.path to /run/mount so the kernel can find firmware
-echo "[LOAD] Setting firmware_class.path to /run/mount"
-echo "/run/mount" > "${FIRMWARE_PATH_PARAM}" || {
-    echo "[LOAD] WARNING: Could not set firmware_class.path"
-}
-
-# Verify firmware_class.path is set correctly
+# Verify firmware_class.path is set correctly by detector service
 echo "[LOAD] Checking firmware_class.path parameter..."
 if [[ -f "${FIRMWARE_PATH_PARAM}" ]]; then
     FW_PATH=$(cat ${FIRMWARE_PATH_PARAM})
     echo "[LOAD] firmware_class.path is set to: ${FW_PATH}"
     if [[ "${FW_PATH}" != "/run/mount" ]]; then
         echo "[LOAD] WARNING: firmware_class.path is not set to /run/mount"
-        echo "[LOAD] Expected: /run/mount"
+        echo "[LOAD] Expected: /run/mount (should be set by detector service)"
         echo "[LOAD] Actual: ${FW_PATH}"
     fi
 else
