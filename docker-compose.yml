@@ -8,7 +8,7 @@ volumes:
       device: /run/mount
 services:
   detector:
-    build: .
+    build: ./detector
     tty: true
     labels:
       io.balena.features.kernel-modules: '1'
@@ -19,3 +19,19 @@ services:
     privileged: true
     ports:
       - "80:8080"
+
+  hailo-kmod:
+    build:
+      context: ./hailo-kmod
+      dockerfile: Dockerfile.template
+      args:
+        OS_VERSION: 6.9.4+rev1
+    depends_on:
+      - detector
+    privileged: true
+    restart: on-failure
+    labels:
+      io.balena.features.kernel-modules: '1'
+    volumes:
+      - 'firmware-volume:/run/mount'
+    network_mode: host

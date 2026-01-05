@@ -32,37 +32,25 @@ fi
 echo "[HAILO SETUP] Setting firmware_class.path to $FIRMWARE_PATH_OVERRIDE"
 echo "$FIRMWARE_PATH_OVERRIDE" > /sys/module/firmware_class/parameters/path
 
-# Step 3: write hailo.conf file
-echo "options hailo_pci force_desc_page_size=4096" | sudo tee /etc/modprobe.d/hailo_pci.conf > /dev/null
+# Step 3: Wait for hailo-kmod service to load the module and create device
+echo "[HAILO SETUP] Waiting for hailo-kmod service to load kernel module..."
+RETRY_COUNT=0
+MAX_RETRIES=30
 
-# Step 4: Load hailo_pci module
-echo "[HAILO SETUP] Reloading kernel module: $MODULE_NAME"
-
-if lsmod | grep -q "^${MODULE_NAME//-/_}"; then
-    echo "[HAILO SETUP] Module $MODULE_NAME is already loaded — unloading first..."
-    if modprobe -r "$MODULE_NAME"; then
-        echo "[HAILO SETUP] Module $MODULE_NAME unloaded successfully"
+while [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; do
+    if [[ -e "$DEVICE_PATH" ]]; then
+        echo "[HAILO SETUP] Hailo device available at $DEVICE_PATH"
+        break
     else
-        echo "[HAILO SETUP] WARNING: Failed to unload $MODULE_NAME. Continuing anyway..."
+        echo "[HAILO SETUP] Waiting for device... (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+        sleep 2
+        RETRY_COUNT=$((RETRY_COUNT + 1))
     fi
-else
-    echo "[HAILO SETUP] Module $MODULE_NAME not currently loaded — continuing..."
-fi
+done
 
-echo "[HAILO SETUP] Loading module $MODULE_NAME..."
-if modprobe "$MODULE_NAME"; then
-    echo "[HAILO SETUP] Module loaded successfully"
-else
-    echo "[HAILO SETUP] ERROR: Failed to load $MODULE_NAME"
-    dmesg | tail -n 20
-    exit 1
-fi
-
-# Step 5: Verify device node
-if [[ -e "$DEVICE_PATH" ]]; then
-    echo "[HAILO SETUP] Hailo device available at $DEVICE_PATH"
-else
-    echo "[HAILO SETUP] Hailo device NOT found at $DEVICE_PATH"
+if [[ ! -e "$DEVICE_PATH" ]]; then
+    echo "[HAILO SETUP] ERROR: Hailo device NOT found at $DEVICE_PATH after ${MAX_RETRIES} attempts"
+    echo "[HAILO SETUP] Check hailo-kmod service logs for module loading issues"
     dmesg | tail -n 20
     exit 1
 fi
