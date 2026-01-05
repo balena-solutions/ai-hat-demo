@@ -26,8 +26,6 @@ services:
       dockerfile: Dockerfile.template
       args:
         OS_VERSION: 6.9.4+rev1
-    depends_on:
-      - detector
     privileged: true
     restart: on-failure
     labels:

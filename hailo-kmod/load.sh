@@ -7,7 +7,8 @@ OS_VERSION=$(echo "$BALENA_HOST_OS_VERSION" | cut -d " " -f 2)
 MOD_PATH="/opt/lib/modules/${OS_VERSION}"
 MODULE_NAME="hailo_pci"
 MODULE_FILE="${MOD_PATH}/${MODULE_NAME}.ko"
-FIRMWARE_FILE="/run/mount/hailo/hailo8_fw.bin"
+FIRMWARE_DIR="/run/mount/hailo"
+FIRMWARE_FILE="${FIRMWARE_DIR}/hailo8_fw.bin"
 FIRMWARE_PATH_PARAM="/sys/module/firmware_class/parameters/path"
 
 echo "[LOAD] ========================================"
@@ -28,7 +29,8 @@ if [[ ! -f "${MODULE_FILE}" ]]; then
 fi
 
 # Wait for firmware file to be placed by detector service
-echo "[LOAD] Waiting for firmware file to be ready..."
+# The detector service will copy firmware from its image to the shared volume
+echo "[LOAD] Waiting for firmware file from detector service..."
 RETRY_COUNT=0
 MAX_RETRIES=60  # Wait up to 2 minutes
 
@@ -46,10 +48,17 @@ done
 if [[ ! -f "${FIRMWARE_FILE}" ]]; then
     echo "[LOAD] ERROR: Firmware file not found after ${MAX_RETRIES} attempts"
     echo "[LOAD] Expected location: ${FIRMWARE_FILE}"
+    echo "[LOAD] The detector service should copy firmware to this location"
     echo "[LOAD] Contents of /run/mount/:"
     ls -laR /run/mount/ || true
     exit 1
 fi
+
+# Set firmware_class.path to /run/mount so the kernel can find firmware
+echo "[LOAD] Setting firmware_class.path to /run/mount"
+echo "/run/mount" > "${FIRMWARE_PATH_PARAM}" || {
+    echo "[LOAD] WARNING: Could not set firmware_class.path"
+}
 
 # Verify firmware_class.path is set correctly
 echo "[LOAD] Checking firmware_class.path parameter..."
