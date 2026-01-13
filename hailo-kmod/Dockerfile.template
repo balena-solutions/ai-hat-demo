@@ -1,0 +1,75 @@
+# Stage 1: Build environment
+FROM ubuntu:jammy AS kernel-build
+
+# Install build dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    bison \
+    build-essential \
+    flex \
+    libelf-dev \
+    libssl-dev \
+    bc \
+    wget \
+    git \
+    ca-certificates \
+    kmod \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up build arguments
+ARG OS_VERSION
+ARG SRC_DIR=/usr/src
+ARG OUT_DIR=/out
+
+# Create directories
+RUN mkdir -p ${SRC_DIR} ${OUT_DIR}
+
+# Copy build script
+COPY build.sh /build.sh
+RUN chmod +x /build.sh
+
+# Fetch Hailo driver source from GitHub
+WORKDIR ${SRC_DIR}
+RUN git clone --depth 1 --branch v4.20.0 \
+    https://github.com/hailo-ai/hailort-drivers.git && \
+    mv hailort-drivers/linux ${SRC_DIR}/linux && \
+    mv hailort-drivers/common ${SRC_DIR}/common && \
+    rm -rf hailort-drivers
+
+# Execute build script
+RUN /build.sh \
+    -i ${SRC_DIR}/linux/pcie \
+    -o ${OUT_DIR} \
+    -v ${OS_VERSION} \
+    -s %%BALENA_MACHINE_NAME%%
+
+# Stage 2: Runtime environment
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    kmod \
+    bash \
+    wget
+
+# Set up module path
+ARG OS_VERSION
+ENV MOD_PATH=/opt/lib/modules/${OS_VERSION}
+RUN mkdir -p ${MOD_PATH}
+
+# Copy compiled module from build stage
+COPY --from=kernel-build /out/*.ko ${MOD_PATH}/
+
+# Download firmware version 4.20.0 to match the driver version
+RUN mkdir -p /opt/firmware/hailo && \
+    wget -O /opt/firmware/hailo/hailo8_fw.bin \
+    https://hailo-hailort.s3.eu-west-2.amazonaws.com/Hailo8/4.20.0/FW/hailo8_fw.4.20.0.bin
+
+# Copy module configuration
+COPY hailo_pci.conf /etc/modprobe.d/hailo_pci.conf
+
+# Copy load script
+COPY load.sh /load.sh
+RUN chmod +x /load.sh
+
+# Set entrypoint
+ENTRYPOINT ["/load.sh"]
