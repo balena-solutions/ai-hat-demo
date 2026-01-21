@@ -32,40 +32,27 @@ You can find the IP address from the device's dashboard summary page, and option
 
 ## How it works
 
-### docker-compose
-There are two significant items of note in the docker-compose file: 
+To enable the Hailo module on a Pi 5, we need the device driver in the form of a **kernel module**, as well as the device **firmware**, which is low-level code that runs on the HAT itself. In some earlier versions of balenaOS (prior to 6.9.4+rev1) the kernel module was included in the OS. However, it was removed by Raspberry Pi so our project now downloads the necessary kernel headers and builds the Hailo kernel module manually in the `hailo-kmod` service. 
 
+### docker-compose
 We need a file location that we can tell the kernel to load firmware from, and this location needs to be a path the host can see. Therefore we create a named volume called `firmware-volume` that is bind-mounted to the host's `/run/mount/` directory (via extended volume fields). Note that it is not supported to mount anything outside of `/run/mount` for now as balenaOS makes no guarentees that those files and directories will exist in future versions. 
 
 
 In addition, we use the [balena label](https://docs.balena.io/reference/supervisor/docker-compose/#labels) `io.balena.features.firmware` to bind mount the host OS `/lib/firmware` into the container.
 
-### Dockerfile
+### Detector service
+This is the container that actually performs the inferencing.
 
 Our Dockerfile adds apt repositories so we can download the Hailo deb packages as well as the Raspberry Pi OS camera apps. The Hailo software expects a system service to be running, but systemd is not really recommended to run in a container, so we "fake" one instead. (We strongly advocate for a multi-container architecture where different components of your application are separated into individual containers.)
 
 We also install the `hailo-all` package that includes the Hailo kernel device driver and firmware, HailoRT middleware software, Hailo Tappas core post-processing libraries and the rpicam-apps Hailo post-processing software demo stages.
 
-Note that our base image is simply an official Python image. 
 
-### entry.sh
+The **entry.sh** script sets up a UDEV system to detect plugged hardware (necessary for the camera), then runs the `ai-setup` script.
 
-This script sets up a UDEV system to detect plugged hardware (necessary for the camera) and then calls the ai-setup script. (This UDEV system was formerly used in our deprecated balenalib library.)
+The **ai-setup.sh** script pauses the start of the inferencing demo until the hailo-kmod service (see below) has finished the firmware setup and kernel module loading.
 
-### ai-setup.sh
-
-This script is the main point of interest for this demo because it installs the firmware for the Hailo AI HAT. 
-
- - First it checks to see if the firmware is in our bind mount location. If not, it copies it there from the location it was installed in our container via hailo-all.
-   
- - It tells the kernel to look in the new bind mount location for the firmware
-   
- - It then reloads the kernel module via modprobe. This causes the firmware to be loaded from the newly specified location.
-
-
-### Python web server
-
-The `start.sh` script starts the `main.py` Python script which runs a simple Flask web server on port 8080. The Flask server starts one of the rpi-cam apps which actually performs the AI detections on the Hailo HAT and outputs the bounding boxes superimposed on the jpeg files which the webserver displays. The rpi-cam apps also use the libcamera library under the hood so it can send output directly to hdmi using a dedicated subsystem in linux kernel (DRM/KMS).
+The demo is run using a **Python Flask web server** on port 8080. The Flask server starts one of the rpi-cam apps which actually performs the AI detections on the Hailo HAT and outputs the bounding boxes superimposed on the jpeg files which the webserver displays. The rpi-cam apps also use the libcamera library under the hood so it can send output directly to hdmi using a dedicated subsystem in linux kernel (DRM/KMS).
 
 Flask server functionality:
 
@@ -80,6 +67,20 @@ Flask server functionality:
 - **Auto-Restarts:** The whole process is wrapped in a while True loop, so if rpicam-vid ever crashes, the Python script automatically restarts it, making the stream very stable.
 
 Hailo provides an [example repository](https://github.com/hailo-ai/hailo-rpi5-examples) if you'd like more control over the AI detection process and access to additional data, such as the coordinates of the bounding boxes, etc...
+
+
+### hailo-kmod service
+As mentioned earlier, the hailo-kmod service handles firmware setup and kernel module loading.
+
+The **Dockerfile** uses a multistage build to save drive space and bandwidth. The first stage creates a build environment, downloads the Hailo driver source from GitHub and then executes the build in the `build.sh` script. The second dockerfile stage uses a lightweight Alpine base and only copies over the compiled module from the build stage. We then download the Hailo firmware version to match the driver version.
+
+The dockerfile executes the `load.sh` script which installs the firmware on the Hilo device and loads the previously built kernel module.
+
+ - First it checks to see if the firmware is in our bind mount location. If not, it copies it there from the location it was downloaded in the Dockerfile.
+   
+ - It tells the kernel to look in the new bind mount location for the firmware
+   
+ - It then reloads the kernel module (with RPi5-specific parameters) via modprobe. This causes the firmware to be loaded from the newly specified location.
 
 ## Troubleshooting:
 For all of the commands below open a terminal session to detector.
