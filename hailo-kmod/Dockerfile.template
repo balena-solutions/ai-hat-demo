@@ -16,7 +16,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up build arguments
-ARG OS_VERSION
+ARG OS_VERSIONS
 ARG SRC_DIR=/usr/src
 ARG OUT_DIR=/out
 
@@ -36,11 +36,12 @@ RUN git clone --depth 1 --branch v4.20.0 \
     rm -rf hailort-drivers
 
 # Execute build script
-RUN /build.sh \
-    -i ${SRC_DIR}/linux/pcie \
-    -o ${OUT_DIR} \
-    -v ${OS_VERSION} \
-    -s %%BALENA_MACHINE_NAME%%
+RUN for version in ${OS_VERSIONS}; do \
+      echo "[DOCKER] Building module for OS version: ${version}" && \
+      mkdir -p ${OUT_DIR}/${version} && \
+      find ${SRC_DIR}/linux/pcie \( -name '*.o' -o -name '*.ko' -o -name '*.mod*' -o -name '.*.cmd' \) -delete 2>/dev/null || true && \
+      /build.sh -i ${SRC_DIR}/linux/pcie -o ${OUT_DIR}/${version} -v ${version} -s %%BALENA_MACHINE_NAME%%; \
+    done
 
 # Stage 2: Runtime environment
 FROM alpine:latest
@@ -51,13 +52,8 @@ RUN apk add --no-cache \
     bash \
     wget
 
-# Set up module path
-ARG OS_VERSION
-ENV MOD_PATH=/opt/lib/modules/${OS_VERSION}
-RUN mkdir -p ${MOD_PATH}
-
-# Copy compiled module from build stage
-COPY --from=kernel-build /out/*.ko ${MOD_PATH}/
+# Copy compiled modules from build stage
+COPY --from=kernel-build /out/ /opt/lib/modules/
 
 # Download firmware version 4.20.0 to match the driver version
 RUN mkdir -p /opt/firmware/hailo && \
