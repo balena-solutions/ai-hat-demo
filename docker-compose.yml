@@ -1,19 +1,8 @@
 version: 2.4
-volumes:
-  firmware-volume:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind,rshared,rw
-      device: /run/mount
 services:
   detector:
     build: ./detector
     tty: true
-    labels:
-      io.balena.features.kernel-modules: '1'
-    volumes:
-      - 'firmware-volume:/data'
     devices:
       - /dev/dri:/dev/dri
     privileged: true
@@ -25,11 +14,10 @@ services:
       context: ./hailo-kmod
       dockerfile: Dockerfile.template
       args:
-        OS_VERSION: 6.9.4+rev1
+        OS_VERSION: 6.10.24
     privileged: true
     restart: on-failure
     labels:
       io.balena.features.kernel-modules: '1'
-    volumes:
-      - 'firmware-volume:/run/mount'
+      io.balena.features.extra-firmware: '1'
     network_mode: host

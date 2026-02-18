@@ -8,9 +8,8 @@ MOD_PATH="/opt/lib/modules/${OS_VERSION}"
 MODULE_NAME="hailo_pci"
 MODULE_FILE="${MOD_PATH}/${MODULE_NAME}.ko"
 FIRMWARE_SOURCE="/opt/firmware/hailo/hailo8_fw.bin"
-FIRMWARE_DIR="/run/mount/hailo"
+FIRMWARE_DIR="/extra-firmware/hailo"
 FIRMWARE_FILE="${FIRMWARE_DIR}/hailo8_fw.bin"
-FIRMWARE_PATH_PARAM="/sys/module/firmware_class/parameters/path"
 
 echo "[LOAD] ========================================"
 echo "[LOAD] Hailo PCIe Kernel Module Loader"
@@ -30,8 +29,8 @@ if [[ ! -f "${MODULE_FILE}" ]]; then
     exit 1
 fi
 
-# Copy firmware version 4.20.0 to shared volume
-echo "[LOAD] Copying firmware 4.20.0 to shared volume..."
+# Copy firmware version 4.20.0 to extra-firmware volume
+echo "[LOAD] Copying firmware 4.20.0 to extra-firmware volume..."
 mkdir -p "${FIRMWARE_DIR}"
 
 if [[ -f "${FIRMWARE_SOURCE}" ]]; then
@@ -40,28 +39,6 @@ if [[ -f "${FIRMWARE_SOURCE}" ]]; then
 else
     echo "[LOAD] ERROR: Firmware source not found at ${FIRMWARE_SOURCE}"
     exit 1
-fi
-
-# Set firmware_class.path to /run/mount so the kernel can find firmware
-echo "[LOAD] Setting firmware_class.path to /run/mount"
-if echo "/run/mount" > "${FIRMWARE_PATH_PARAM}"; then
-    echo "[LOAD] firmware_class.path set successfully"
-else
-    echo "[LOAD] WARNING: Could not set firmware_class.path"
-fi
-
-# Verify firmware_class.path is set correctly
-echo "[LOAD] Verifying firmware_class.path parameter..."
-if [[ -f "${FIRMWARE_PATH_PARAM}" ]]; then
-    FW_PATH=$(cat ${FIRMWARE_PATH_PARAM})
-    echo "[LOAD] firmware_class.path is set to: ${FW_PATH}"
-    if [[ "${FW_PATH}" != "/run/mount" ]]; then
-        echo "[LOAD] WARNING: firmware_class.path is not set to /run/mount"
-        echo "[LOAD] Expected: /run/mount"
-        echo "[LOAD] Actual: ${FW_PATH}"
-    fi
-else
-    echo "[LOAD] WARNING: firmware_class.path parameter not accessible"
 fi
 
 # Check if module is already loaded
