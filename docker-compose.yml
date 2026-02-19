@@ -14,7 +14,7 @@ services:
       context: ./hailo-kmod
       dockerfile: Dockerfile.template
       args:
-        OS_VERSION: 6.10.24
+        OS_VERSIONS: "6.10.22 6.10.24"
     privileged: true
     restart: on-failure
     labels:

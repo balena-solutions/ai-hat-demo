@@ -24,8 +24,9 @@ echo "[LOAD] ========================================"
 # Verify module exists
 if [[ ! -f "${MODULE_FILE}" ]]; then
     echo "[LOAD] ERROR: Module file not found: ${MODULE_FILE}"
-    echo "[LOAD] Available files in ${MOD_PATH}:"
-    ls -la "${MOD_PATH}" || true
+    echo "[LOAD] Device OS version '${OS_VERSION}' does not match any bundled module."
+    echo "[LOAD] Available module versions:"
+    ls -d /opt/lib/modules/*/ 2>/dev/null || echo "[LOAD]   (none found)"
     exit 1
 fi
 
