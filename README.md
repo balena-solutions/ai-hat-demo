@@ -5,10 +5,13 @@ This project is a demonstration of how to install and use the hailo8 firmware on
 This is a good template example of how to use a secondary location for kernel firmware and then load it onto the host from within a container.
 
 ## Usage:
-Clone this project and then run the following from the root of the project, where `myFleet` is the name of your fleet on balenaCloud:
+1. Clone this repo
+2. Update the `OS_VERSIONS` field in docker-compose.yml to include a space separated list of one or more OS versions you want to build and support with your app. Note: for each OS version you include, this will increase the build time.
+3. Issue the following command from the root of the project, where `myFleet` is the name of your fleet on balenaCloud:
 ```
 balena push myFleet
 ```
+(You'll need to have the [balenaCLI](https://github.com/balena-io/balena-cli/blob/master/INSTALL.md) installed on your development machine to use this command.
 
 ## Configuration
 
@@ -18,8 +21,6 @@ In order to make use of Gen 3 PCI, ensure that your device overlay setting on `h
 ```
 
 Add the "Custom configuration" `BALENA_HOST_CONFIG_camera_auto_detect` with a value of `1` in the device configuration page. (This [configuration option](https://www.raspberrypi.com/documentation/computers/config_txt.html#camera_auto_detect) will automatically load overlays for recognized CSI cameras.)
-
-You should also increase the "Define device GPU memory in megabytes." setting in the "Device configuration" to at least 64.
 
 ## Demo
 
