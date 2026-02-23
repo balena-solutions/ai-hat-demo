@@ -42,7 +42,7 @@ The **Dockerfile** uses a multistage build to save drive space and bandwidth. Th
 
 The dockerfile executes the `load.sh` script which loads the previously built kernel module as well as the firmware.
 
- - Since this service uses the `io.balena.features.extra-firmware` label in its Dockerfile, the OS will check the bind mount location `/extra-firmware/` for additional firmware to load. 
+ - Since this service uses the [`io.balena.features.extra-firmware`](https://docs.balena.io/learn/develop/extra-firmware/) label in its Dockerfile, the OS will check the bind mount location `/extra-firmware/` for additional firmware to load. 
    
  - It copies the downloaded firmware to the `/extra-firmware/` location.
    
