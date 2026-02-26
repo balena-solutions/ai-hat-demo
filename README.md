@@ -2,7 +2,7 @@
 <img src="images/hailo-main2b.jpg">
 This project is a demonstration of how to install and use the hailo8 firmware on a Raspberry Pi 5 running balenaOS. The demo utilizes an attached Pi camera (V2 or V3) to display bounding boxes around objects detected by a neural network via the AI HAT.
 
-This is a good template example of how to use a secondary location for kernel firmware and then load it onto the host from within a container.
+This is a good template example of how to load custom firmware onto a device from a container, as well as building and loading a kernel module driver.
 
 ## Usage:
 1. Clone this repo
